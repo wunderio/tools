@@ -1,0 +1,49 @@
+default:
+  context:
+    parameters:
+      default_browser: 'goutte'
+      emailTestServerUrl: 'http://myproject.dev:1080/'
+      activationUrlBase: '/user/reset'
+      drupal_strings:
+        user_profile_header_prefix:
+          'Profil von '
+  paths:
+    features: 'behat_features'
+  extensions:
+    Behat\MinkExtension\Extension:
+      goutte: ~
+      javascript_session: selenium2
+      selenium2:
+        # we use phantomjs instead of selenium
+        wd_host: 'http://localhost:8643/wd/hub'
+      base_url: http://myproject.dev/
+    Drupal\DrupalExtension\Extension:
+      blackbox: ~
+      api_driver: 'drupal'
+      drush:
+        root: /var/www/htdocs
+      drupal:
+        drupal_root: '/var/www/htdocs'
+      text:
+         log_out: "Abmelden"
+         log_in: "Anmelden"
+         password_field: "Dein Passwort"
+         username_field: "Dein Benutzername"
+      region_map:
+         header: '#header'
+         navigation: '#navigation'
+         sidebar_first: '#content-wrapper > .region-sidebar-first'
+         content: '#content'
+         fat_footer: '#fat-footer'
+         footer: '#page > .region-footer'
+         colorbox: '#colorbox'
+      selectors:
+         message_selector: '.messages'
+         error_message_selector: '.messages.error'
+         success_message_selector: '.messages.status'
+      subcontexts:
+        paths:
+          - 'behat_subcontexts'
+
+imports:
+  - behat.local.yml

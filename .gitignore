@@ -1,0 +1,6 @@
+vendor
+bin
+selenium-server-standalone-*
+behat.local.yml
+screenshots/behat*
+screenshots/failures/
