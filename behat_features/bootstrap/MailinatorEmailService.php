@@ -45,7 +45,7 @@ class MailinatorEmailService implements EmailService {
     return $emailResponse->data->parts[0]->body;
   }
 
-  public function clickALinkInEmail($emailBody) {
+  public function clickALinkInEmail($emailBody, $pattern) {
     $link = $this->getActivationLink($emailBody);
     $this->session->executeScript('window.location.href = "'.$link.'";');
   }

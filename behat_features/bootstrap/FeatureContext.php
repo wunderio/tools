@@ -10,6 +10,7 @@ use Behat\Gherkin\Node\PyStringNode,
   Behat\Gherkin\Node\TableNode;
 
 use Drupal\Component\Utility\Random;
+use Drupal\DrupalExtension\Context\DrupalContext;
 use WK\Behat\EmailService,
   WK\Behat\MailCatcherEmailService;
 
@@ -76,7 +77,7 @@ class LocalDataRegistry {
 /**
  * Features context.
  */
-class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
+class FeatureContext extends DrupalContext {
   /**
    *Store rss feed xml content
    */
@@ -233,7 +234,9 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
    * @defgroup helper functions
    * @{
    */
-
+  public function replaceTokenArgument($arg) {
+    return $this->fixStepArgument($arg);
+  }
   /**
    * Helper function to fetch user passwords stored in behat.yml.
    *
@@ -523,7 +526,16 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     $email = $this->fixStepArgument($email);
     $this->setEmailService();
     $email_body = $this->emailService->viewTheLatestEmailForAddress($email);
-    $this->emailService->clickALinkInEmail($email_body);
+    $this->emailService->clickALinkInEmail($email_body, $this->activationUrlBase);
   }
 
+  /**
+   * @When /^I click the "([^"]*)" link that was sent to "([^"]*)"$/
+   */
+  public function iClickTheLinkThatWasSentTo($pattern, $email) {
+    $email = $this->fixStepArgument($email);
+    $this->setEmailService();
+    $email_body = $this->emailService->viewTheLatestEmailForAddress($email);
+    $this->emailService->clickALinkInEmail($email_body, $pattern);
+  }
 }

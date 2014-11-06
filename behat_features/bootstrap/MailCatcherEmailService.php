@@ -53,8 +53,8 @@ class MailCatcherEmailService implements EmailService {
     return empty($message) ? '' : $message;
   }
 
-  public function clickALinkInEmail($emailBody) {
-    $link = $this->getActivationLink($emailBody);
+  public function clickALinkInEmail($emailBody, $pattern) {
+    $link = $this->getLinkWithPattern($emailBody, $pattern);
     $this->session->visit($link);
   }
 
@@ -112,10 +112,16 @@ class MailCatcherEmailService implements EmailService {
     return file_get_contents("$this->baseUrl/messages/$id.plain");
   }
 
-  private function getActivationLink($emailBody) {
+  private function getLinkWithPattern($text, $pattern) {
     $matches = array();
-    $activationUrlBase = $this->activationUrlBase;
-    if(preg_match_all('/https?:[\S]+/', $emailBody, $matches)) {
+
+    // @TODO: This is only minimal sanitation for now.
+    $escaped_pattern = preg_replace('#/#', "\/", $pattern);
+
+    if(preg_match_all('/https?:[\S]*' . $escaped_pattern . '[\S]*' . '/', $text, $matches)) {
+      if (count($matches) > 1 ) {
+        throw new \Exception("Ambiguous link pattern '$pattern'. More than one link found.");
+      }
       return $matches[0][0];
     }
     throw new \Exception('No link in email found');
