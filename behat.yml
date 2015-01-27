@@ -1,34 +1,46 @@
 default:
-  context:
-    parameters:
-      default_browser: 'goutte'
-      emailTestServerUrl: 'http://myproject.dev:1080/'
-      activationUrlBase: '/user/reset'
-      drupal_strings:
-        user_profile_header_prefix:
-          'Profil von '
-  paths:
-    features: 'behat_features'
+  suites:
+    default:
+      contexts:
+        - FeatureContext:
+            email_test_server_url: 'http://myproject.dev:1080/'
+            activation_url_base: '/user/reset'
+            drupal_strings:
+              user_profile_header_prefix: 'Profil von '
+            drupal_users:
+              user4414:
+                'user4414'
+              user4076:
+                'user4076'
+              user4028:
+                'user4028'
+              user4026:
+                'user4026'
+              user1:
+                'user1'
+        - Drupal\DrupalExtension\Context\DrupalContext
+        - Drupal\DrupalExtension\Context\MinkContext
+        - Drupal\DrupalExtension\Context\MessageContext
+        - Drupal\DrupalExtension\Context\DrushContext
   extensions:
-    Behat\MinkExtension\Extension:
+    Behat\MinkExtension:
       goutte: ~
       javascript_session: selenium2
       selenium2:
-        # we use phantomjs instead of selenium
         wd_host: 'http://localhost:8643/wd/hub'
       base_url: http://myproject.dev/
-    Drupal\DrupalExtension\Extension:
+    Drupal\DrupalExtension:
       blackbox: ~
       api_driver: 'drupal'
       drush:
-        root: /var/www/htdocs
+        root: /var/www/myproject
       drupal:
-        drupal_root: '/var/www/htdocs'
+        drupal_root: '/var/www/myproject'
       text:
          log_out: "Abmelden"
          log_in: "Anmelden"
-         password_field: "Dein Passwort"
-         username_field: "Dein Benutzername"
+         password_field: "Password"
+         username_field: "Username"
       region_map:
          header: '#header'
          navigation: '#navigation'
@@ -44,6 +56,12 @@ default:
       subcontexts:
         paths:
           - 'behat_subcontexts'
+    emuse\BehatHTMLFormatter\BehatHTMLFormatterExtension:
+      name: html
+  formatters:
+    html:
+        output_path: %paths.base%/testreports
 
-imports:
-  - behat.local.yml
+# @todo: either the import does not work, or extending the parameters does not
+#imports:
+#  - behat.local.yml

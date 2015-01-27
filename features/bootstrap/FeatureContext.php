@@ -1,13 +1,9 @@
 <?php
 
-
-
-use Behat\Behat\Context\ClosuredContextInterface,
-  Behat\Behat\Context\TranslatedContextInterface,
-  Behat\Behat\Context\BehatContext,
-  Behat\Behat\Exception\PendingException;
-use Behat\Gherkin\Node\PyStringNode,
-  Behat\Gherkin\Node\TableNode;
+use Drupal\DrupalExtension\Context\RawDrupalContext;
+use Behat\Behat\Context\SnippetAcceptingContext;
+use Behat\Gherkin\Node\PyStringNode;
+use Behat\Gherkin\Node\TableNode;
 
 use Drupal\Component\Utility\Random;
 use Drupal\DrupalExtension\Context\DrupalContext;
@@ -77,7 +73,7 @@ class LocalDataRegistry {
 /**
  * Features context.
  */
-class FeatureContext extends DrupalContext {
+class FeatureContext extends RawDrupalContext implements SnippetAcceptingContext {
   /**
    *Store rss feed xml content
    */
@@ -119,20 +115,20 @@ class FeatureContext extends DrupalContext {
    * @param array $parameters
    *   context parameters (set them up through behat.yml)
    */
-  public function __construct(array $parameters) {
+  public function __construct($drupal_users, $drupal_strings, $email_test_server_url, $activation_url_base) {
     $this->dataRegistry = new LocalDataRegistry();
-    $this->default_browser = $parameters['default_browser'];
-    if (isset($parameters['drupal_users'])) {
-      $this->drupal_users = $parameters['drupal_users'];
+
+    if (isset($drupal_users)) {
+      $this->drupal_users = $drupal_users;
     }
-    if (isset($parameters['drupal_strings'])) {
-      $this->drupal_strings = $parameters['drupal_strings'];
+    if (isset($drupal_strings)) {
+      $this->drupal_strings = $drupal_strings;
     }
-    if (isset($parameters['emailTestServerUrl'])) {
-      $this->emailTestServerUrl = $parameters['emailTestServerUrl'];
+    if (isset($email_test_server_url)) {
+      $this->emailTestServerUrl = $email_test_server_url;
     }
-    if (isset($parameters['activationUrlBase'])) {
-      $this->activationUrlBase = $parameters['activationUrlBase'];
+    if (isset($activation_url_base)) {
+      $this->activationUrlBase = $activation_url_base;
     }
   }
 
@@ -144,6 +140,7 @@ class FeatureContext extends DrupalContext {
   public function restartSession() {
     $this->getSession()->reset();
   }
+
   /**
    * Take screenshot when step fails. Works only with Selenium2Driver.
    *
@@ -152,10 +149,10 @@ class FeatureContext extends DrupalContext {
    *
    * Screenshot is saved at [Date]/[Feature]/[Scenario]/[Step].jpg .
    *
-   * @AfterStep @javascript
+   * @AfterStepTested @javascript
    */
-  public function takeScreenshotAfterFailedStep(Behat\Behat\Event\StepEvent $event) {
-    if ($event->getResult() === Behat\Behat\Event\StepEvent::FAILED) {
+  public function takeScreenshotAfterFailedStep(Behat\Behat\EventDispatcher\Event\AfterStepTested $event) {
+    if ($event->getTestResult() === Behat\Behat\EventDispatcher\Event\AfterStepTested::FAILED) {
       $driver = $this->getSession()->getDriver();
       if ($driver instanceof Behat\Mink\Driver\Selenium2Driver) {
         $step = $event->getStep();
@@ -234,6 +231,26 @@ class FeatureContext extends DrupalContext {
    * @defgroup helper functions
    * @{
    */
+  /**
+   * Return a region from the current page.
+   *
+   * @throws \Exception
+   *   If region cannot be found.
+   *
+   * @param string $region
+   *   The machine name of the region to return.
+   *
+   * @return \Behat\Mink\Element\NodeElement
+   */
+  public function getRegion($region) {
+    $session = $this->getSession();
+    $regionObj = $session->getPage()->find('region', $region);
+    if (!$regionObj) {
+      throw new \Exception(sprintf('No region "%s" found on the page %s.', $region, $session->getCurrentUrl()));
+    }
+
+    return $regionObj;
+  }
   public function replaceTokenArgument($arg) {
     return $this->fixStepArgument($arg);
   }
@@ -324,7 +341,6 @@ class FeatureContext extends DrupalContext {
   /**
    * A step to deal with slow loading pages
    */
-
   public function spin ($lambda, $wait = 120) {
     for ($i = 0; $i < $wait; $i++) {
       try {
@@ -349,15 +365,12 @@ class FeatureContext extends DrupalContext {
     if (empty($element)) {
       throw new Exception('Page not found');
     }
-    // Get the page title.
-    $title_element = $element->findByID('page-title');
-    if (empty($title_element)) {
-      throw new Exception ('No page title found at ' . $this->getSession()->getCurrentUrl());
-    }
-    $page_title = $title_element->getText();
-    if ($page_title == 'User account') {
+
+    $logout = $element->findLink('Logout');
+    if ($logout) {
       return FALSE;
     }
+
     return TRUE;
   }
   /**
@@ -396,6 +409,12 @@ class FeatureContext extends DrupalContext {
     if (empty($page)) {
       throw new Exception('Page not found');
     }
+    $this->getSession()->visit($this->locatePath('/user/login'));
+    $page = $this->getSession()->getPage();
+    if (empty($page)) {
+      throw new Exception('Page not found');
+    }
+
     $page->fillField($this->getDrupalText('username_field'), $username);
     $page->fillField($this->getDrupalText('password_field'), $passwd);
     $submit = $page->findButton($this->getDrupalText('log_in'));
@@ -404,18 +423,9 @@ class FeatureContext extends DrupalContext {
     }
     // Log in.
     $submit->click();
-    $user = $this->whoami();
-    if (strtolower($user) == strtolower($username)) {
-      HackyDataRegistry::set('username', $username);
-      $this->dataRegistry->set('current_username', $username);
-      // @todo: find a way to also save user ID
-//        $link = $this->getSession()->getPage()->findLink("Your Dashboard");
-//        // URL format: /user/{uid}/dashboard
-//        preg_match("/\/user\/(.*)\//", $link->getAttribute('href'), $match);
-//        if (!empty($match[1])) {
-//          HackyDataRegistry::set('uid:' . $username, trim($match[1]));
-//        }
-      return;
+
+    if ($logged_in) {
+      return TRUE;
     }
 
     throw new Exception('Not logged in.');
@@ -436,6 +446,8 @@ class FeatureContext extends DrupalContext {
    * @Then /^I should see the page title containing "([^"]*)"$/
    */
   public function iShouldSeeThePageTitleContaining($string_partial) {
+    $string_partial = $this->fixStepArgument($string_partial);
+
     $page = $this->getSession()->getPage();
     $current_url = $this->getSession()->getCurrentUrl();
     $title_tag = $page->find('css', 'h1');
@@ -456,6 +468,8 @@ class FeatureContext extends DrupalContext {
    * @Then /^I should see a panel pane with the headline "([^"]*)" in the "([^"]*)" region$/
    */
   public function iShouldSeeAPanelPaneWithTheHeadlineInTheRegion($headline_text, $region) {
+    $headline_text = $this->fixStepArgument($headline_text);
+
     $region_obj = $this->getRegion($region);
     if (!$region_obj->findAll('css', '.panel-pane')) {
       throw new \Exception('No panel pane found.');
@@ -502,8 +516,11 @@ class FeatureContext extends DrupalContext {
    */
   public function iShouldSeeTheLinkPointingTo($link, $url) {
     $page = $this->getSession()->getPage();
-    $link = $page->findLink($link);
-    $path = $link->getAttribute('href');
+    $link_obj = $page->findLink($link);
+    if (!$link_obj) {
+      throw new \Exception(sprintf("No link found matching '%s'", $link));
+    }
+    $path = $link_obj->getAttribute('href');
     if ($path == $url) {
       return;
     }
@@ -537,5 +554,43 @@ class FeatureContext extends DrupalContext {
     $this->setEmailService();
     $email_body = $this->emailService->viewTheLatestEmailForAddress($email);
     $this->emailService->clickALinkInEmail($email_body, $pattern);
+  }
+
+  /**
+   * @Then /^the shortlink should (not )?be "([^"]*)"$/
+   */
+  public function theShortlinkIs($not, $href) {
+    if ($not) {
+      return $this->assertSession()->elementNotExists("xpath", "//link[@rel='shortlink'][@href='$href']");
+    }
+    else {
+      return $this->assertSession()->elementExists("xpath", "//link[@rel='shortlink'][@href='$href']");
+    }
+  }
+
+  /**
+   * @Then /^I should see a form containing the field "([^"]*)"$/
+   */
+  public function iShouldSeeAFormContainingTheFollowingField($field) {
+    $field = $this->fixStepArgument($field);
+    $found = $this->getSession()->getPage()->findField($field);
+    if (!$found) {
+      throw new \Exception(sprintf("No field found matching '%s'", $field));
+    }
+  }
+
+  /**
+   * @Given /^the field "([^"]*)" should be disabled$/
+   */
+  public function theFieldShouldBeDisabled($field) {
+    $field = $this->fixStepArgument($field);
+    $found = $this->getSession()->getPage()->findField($field);
+    if (!$found) {
+      throw new \Exception(sprintf("No field found matching '%s'", $field));
+    }
+    $disabled = $found->getAttribute('disabled');
+    if (!$disabled) {
+      throw new \Exception(sprintf("Field '%s' is not disabled!", $field));
+    }
   }
 }

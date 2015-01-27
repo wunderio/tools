@@ -7,7 +7,8 @@ phantom_pid=$!
 
 # Run the tests
 echo 'Running the tests'
-bin/behat
+bin/behat --format=pretty --format=html
+mv testrun.html testreports/testreport-$(date -d "today" +"%Y-%m-%d_%H-%M").html
 
 # Kill phantomjs process.
 echo 'Stopping phantomjs'
